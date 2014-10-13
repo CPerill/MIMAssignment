@@ -30,7 +30,7 @@ public class TwitterFetch {
 	/** * @param args */ 
 	public static void main(String[] args) {
 		tw = new TwitterClient(AccessTokens.consumerKey, AccessTokens.consumerKeySecret);
-		//search("galway");
-		userTimeline("pwezem"); // only recent 200
+		search("galway");
+		//userTimeline("pwezem"); // only recent 200
 	}
 }
