@@ -1,4 +1,4 @@
 MIMAssignment
 =============
 
-Continuous assesment
+Continuous assessment.
