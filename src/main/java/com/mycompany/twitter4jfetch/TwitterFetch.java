@@ -28,9 +28,21 @@ public class TwitterFetch {
 	}
 	
 	/** * @param args */ 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
+                // FileReading
+                TwitterClient.FileReader(TwitterClient.stopWordFile);
+            
 		tw = new TwitterClient(AccessTokens.consumerKey, AccessTokens.consumerKeySecret);
-		search("galway");
+		search("#Sasquatch2014");
+                
+                System.out.println("************************************");
+                TwitterClient.renderWordFreqTable();
+          
+                
+                TwitterClient.getTermsOver(0, TwitterClient.termCollection);
+
+                
+
 		//userTimeline("pwezem"); // only recent 200
 	}
 }
