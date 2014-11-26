@@ -7,23 +7,19 @@ import java.io.FileReader;
 import java.util.List;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
-import twitter4j.Paging;
+import java.util.TreeMap;
 import twitter4j.Query;
 import twitter4j.QueryResult;
-import twitter4j.ResponseList;
 import twitter4j.Status;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
-import twitter4j.User;
-import twitter4j.auth.AccessToken;
 import twitter4j.auth.OAuth2Token;
-import twitter4j.auth.RequestToken;
 import twitter4j.conf.ConfigurationBuilder;
 
 public class TwitterClient {
@@ -31,32 +27,56 @@ public class TwitterClient {
     private String CONSUMER_KEY;
     private String CONSUMER_KEY_SECRET;
 
-    protected static Map<String, Integer> termCollection = new HashMap<String, Integer>();
+    /////////////////////////////
+    // Term Categories
+    protected static Map<String, Tweetails> termCollection = new HashMap<String, Tweetails>();
+    protected static Map<String, Tweetails> people = new HashMap<String, Tweetails>();
+    protected static Map<String, Tweetails> hashtags = new HashMap<String, Tweetails>();
+    protected static Map<String, Tweetails> positiveWords = new HashMap<String, Tweetails>();
+    protected static Map<String, Tweetails> negativeWords = new HashMap<String, Tweetails>();
+    //
+    //////////////////////////////
 
-    private static ArrayList<String> input = new ArrayList<String>();
+    //private static ArrayList<String> input = new ArrayList<String>();
+    private static Map<String, Date> input = new HashMap<String, Date>();
 
     protected static File stopWordFile = new File("stopWords.csv");
     protected static List<String> stopWords = new ArrayList();
+    protected static File positiveFile = new File("positive.csv");
+    protected static List<String> positiveRef = new ArrayList();
+    protected static File negativeFile = new File("negative.csv");
+    protected static List<String> negativeRef = new ArrayList();
 
     public TwitterClient(String KEY, String KEY_SECRET) {
         CONSUMER_KEY = KEY;
         CONSUMER_KEY_SECRET = KEY_SECRET;
     }
 
-    public static void FileReader(File toRead) throws FileNotFoundException, IOException {
-        BufferedReader br = new BufferedReader(new FileReader(toRead));
+    public static void readFiles() throws FileNotFoundException, IOException {
+        // Reading in word files to clean and categorise data
+        BufferedReader swBR = new BufferedReader(new FileReader(stopWordFile));
+        BufferedReader pwBR = new BufferedReader(new FileReader(positiveFile));
+        BufferedReader nwBR = new BufferedReader(new FileReader(negativeFile));
 
-        if (toRead.getName().equals("stopWords.csv")) {
-            String line = null;
-            while ((line = br.readLine()) != null) {
-                String[] sw = line.split(",");
-                for (int i = 0; i < sw.length; i++) {
-                    stopWords.add(sw[i]);
-                }
+        String line = null;
+        while ((line = swBR.readLine()) != null) {
+            String[] sw = line.split(",");
+            for (int i = 0; i < sw.length; i++) {
+                stopWords.add(sw[i]);
             }
+        }
 
-            for (String s : stopWords) {
+        while ((line = pwBR.readLine()) != null) {
+            String[] sw = line.split(",");
+            for (int i = 0; i < sw.length; i++) {
+                positiveRef.add(sw[i]);
+            }
+        }
 
+        while ((line = nwBR.readLine()) != null) {
+            String[] sw = line.split(",");
+            for (int i = 0; i < sw.length; i++) {
+                negativeRef.add(sw[i]);
             }
         }
     }
@@ -76,12 +96,11 @@ public class TwitterClient {
             System.out.println("Access Token: " + token.getAccessToken());
         }
         Query query = new Query(qstr);
-        query.setCount(1000);
-        //long id = (long) 422204137108168705;
-        //result.getSinceId();
+        // Gather x amount of tweets
+        query.setCount(5000);
         QueryResult result = twitter.search(query);
         for (Status status : result.getTweets()) {
-            System.out.println("@" + status.getUser().getScreenName() + ":" + status.getText());
+            System.out.println("@" + status.getUser().getScreenName() + ":" + status.getText() + " (" + status.getCreatedAt().toString() + ")");
             System.out.println("Retweets: " + status.getRetweetCount() + " | Favourites: " + status.getFavoriteCount());
 
             if (status.getGeoLocation() != null) {
@@ -90,44 +109,149 @@ public class TwitterClient {
             }
 
             // Feed tweets and username into map
-            input.add(status.getText());
+            input.put(status.getText(), status.getCreatedAt());
         }
 
     }
 
     public static void renderWordFreqTable() {
-        Map<String, Integer> output = new HashMap<String, Integer>();
+        Map<String, Tweetails> output = new HashMap<String, Tweetails>();
+        Iterator<Map.Entry<String, Date>> inputIterator = input.entrySet().iterator();
 
-        for (String tweet : input) {
-            String[] words = tweet.trim().split("\\s+");
+        while (inputIterator.hasNext()) {
+            Map.Entry<String, Date> tweet = inputIterator.next();
+            String[] words = tweet.getKey().trim().split("\\s+");
+
+            Date tweetDate = tweet.getValue();
 
             for (String word : words) {
-                Integer terms = output.get(word);
-                if (terms == null) {
-                    // terms = new HashMap<String,Integer>();
-                    output.put(word, 1);
+                Integer terms = null;
+
+                Tweetails tweetDetails = output.get(word);
+                if (tweetDetails != null) {
+                    terms = tweetDetails.getOccourences();
+                }
+
+                ArrayList<Date> listToAdd = new ArrayList<Date>();
+                if (terms == null) {   
+                    listToAdd.add(tweetDate);
+                    output.put(word, new Tweetails(1, listToAdd));
                 } else {
-                    output.put(word, terms + 1);
+                    listToAdd = tweetDetails.getTweetTimes();
+                    listToAdd.add(tweetDate);
+                    output.put(word, new Tweetails(terms + 1, listToAdd));
                 }
             }
         }
-        
+
+        Iterator<Map.Entry<String, Tweetails>> tempIterator = output.entrySet().iterator();
+        while (tempIterator.hasNext()) {
+            Map.Entry<String, Tweetails> entry = tempIterator.next();
+            System.out.println(entry.getKey() + " - [" + entry.getValue().occourences + "]");
+        }
+
+        System.out.println("Starting removeStopWords()");
         termCollection = removeStopWords(output);
-        //return output;
-        //System.out.println("Unordered terms: \n" + output);
-        //System.out.println("Ordered terms: \n" + orderTerms(output).toString());
+        System.out.println("Starting populateTermCategories()");
+        populateTermCategories(termCollection);
+        System.out.println("Starting orderTerms()");
+        orderTerms(termCollection);
+        System.out.println("Starting displayCategories()");
+        displayCategories();
+
+        System.out.println(positiveWords.size() + " Positive Terms:");
+        Iterator<Map.Entry<String, Tweetails>> positiveIterator = positiveWords.entrySet().iterator();
+        Iterator<Map.Entry<String, Tweetails>> negativeIterator = negativeWords.entrySet().iterator();
+        while (positiveIterator.hasNext()) {
+            Map.Entry<String, Tweetails> entry = positiveIterator.next();
+            System.out.print(entry.getKey() + " - [" + entry.getValue().occourences + "] (");
+            for(Date time : entry.getValue().getTweetTimes()){
+               System.out.print(time + ", "); 
+            }
+            System.out.println(")");
+        }
+        System.out.println(negativeWords.size() + " Negative Terms:");
+        while (negativeIterator.hasNext()) {
+            Map.Entry<String, Tweetails> entry = negativeIterator.next();
+            System.out.println(entry.getKey() + " - [" + entry.getValue().occourences + "]");
+        }
 
     }
 
-    public static Map<String, Integer> removeStopWords(Map toRemoveFrom) {
-        Iterator<Map.Entry<String, Integer>> tTFIterator = toRemoveFrom.entrySet().iterator();
+    public static void populateTermCategories(Map termMap) {
+        Iterator<Map.Entry<String, Tweetails>> rPTIterator = termMap.entrySet().iterator();
+
+        while (rPTIterator.hasNext()) {
+            Map.Entry<String, Tweetails> entry = rPTIterator.next();
+            String key = entry.getKey();
+            Integer value = entry.getValue().occourences;
+            ArrayList<Date> tweetDates = entry.getValue().tweetTime;
+            // Gather People
+            if (key.startsWith("@") || key.startsWith(".@")) {
+                people.put(key, new Tweetails(value, tweetDates));
+                rPTIterator.remove();
+            }
+            // Gather Hashtags
+            if (key.startsWith("#")) {
+                hashtags.put(key, new Tweetails(value, tweetDates));
+                rPTIterator.remove();
+            }
+            // Gather positive terms
+            if (positiveRef.contains(key.toLowerCase())) {
+                positiveWords.put(key, new Tweetails(value, tweetDates));
+            }
+            // Gather negative terms
+            if (negativeRef.contains(key.toLowerCase())) {
+                negativeWords.put(key, new Tweetails(value, tweetDates));
+            }
+        }
+    }
+
+    public static void displayCategories() {
+
+        Iterator<Map.Entry<String, Tweetails>> peopleIterator = people.entrySet().iterator();
+        Iterator<Map.Entry<String, Tweetails>> topicIterator = hashtags.entrySet().iterator();
+        Iterator<Map.Entry<String, Tweetails>> positiveIterator = positiveWords.entrySet().iterator();
+        Iterator<Map.Entry<String, Tweetails>> negativeIterator = negativeWords.entrySet().iterator();
+
+        System.out.println("\n\n*People*\t\t*Topic*\t\t*Positive*\t\t*Negative*");
+        while (peopleIterator.hasNext() || topicIterator.hasNext() || positiveIterator.hasNext() || negativeIterator.hasNext()) {
+            if (peopleIterator.hasNext()) {
+                Map.Entry<String, Tweetails> personEntry = peopleIterator.next();
+                System.out.print(personEntry.getKey());
+            } else {
+                System.out.print("\t\t");
+            }
+            if (topicIterator.hasNext()) {
+                Map.Entry<String, Tweetails> topicEntry = topicIterator.next();
+                System.out.print("\t\t" + topicEntry.getKey());
+            } else {
+                System.out.print("\t\t");
+            }
+            if (positiveIterator.hasNext()) {
+                Map.Entry<String, Tweetails> positiveEntry = positiveIterator.next();
+                System.out.print("\t\t" + positiveEntry.getKey());
+            } else {
+                System.out.print("\t\t");
+            }
+            if (negativeIterator.hasNext()) {
+                Map.Entry<String, Tweetails> negativeEntry = negativeIterator.next();
+                System.out.print("\t\t" + negativeEntry.getKey() + "\n");
+            } else {
+                System.out.print("\n");
+            }
+        }
+    }
+
+    public static Map<String, Tweetails> removeStopWords(Map<String, Tweetails> toRemoveFrom) {
+        Iterator<Map.Entry<String, Tweetails>> tTFIterator = toRemoveFrom.entrySet().iterator();
 
         while (tTFIterator.hasNext()) {
-            Map.Entry<String, Integer> entry = tTFIterator.next();
+            Map.Entry<String, Tweetails> entry = tTFIterator.next();
             String key = entry.getKey();
-                if (stopWords.contains(key.toLowerCase())) {
-                    tTFIterator.remove();
-                }
+            if (stopWords.contains(key.toLowerCase()) || key.startsWith("http") || key.equals("RT")) {
+                tTFIterator.remove();
+            }
         }
         //Map<String, Integer> toReturn = toRemoveFrom;
         return toRemoveFrom;
@@ -136,60 +260,46 @@ public class TwitterClient {
     public static Map getTermsOver(int n, Map map) {
         System.out.println("Terms over " + n + ":\n");
 
-        Iterator<Map.Entry<String, Integer>> entryIter = map.entrySet().iterator();
-        Map<String, Integer> toReturn = new HashMap<String, Integer>();
+        Iterator<Map.Entry<String, Tweetails>> entryIter = map.entrySet().iterator();
+        Map<String, Tweetails> toReturn = new HashMap<String, Tweetails>();
         //System.out.println("Terms over 100:\n");
 
         while (entryIter.hasNext()) {
-            Map.Entry<String, Integer> entry = entryIter.next();
+            Map.Entry<String, Tweetails> entry = entryIter.next();
             String key = entry.getKey();
-            int value = entry.getValue().intValue();
+            int value = entry.getValue().occourences;
 
             //System.out.println(value);
             if (value > n) { //If term is mentioned more than 100 times
                 System.out.println(key + ": " + value);
-                toReturn.put(key, value);
+                toReturn.put(key, new Tweetails(value, entry.getValue().tweetTime));
             }
         }
 
         return toReturn;
     }
 
-    public static Map orderTerms(Map terms) {
+    public static Map orderTerms(Map<String, Tweetails> unsortedMap) {
+        TreeMap<String, Tweetails> treeMap = new TreeMap<String, Tweetails>(new MapComparator(unsortedMap));
+        treeMap.putAll(unsortedMap);
 
-        // Divide keys and values
-        List keys = new ArrayList(terms.keySet());
-        List values = new ArrayList(terms.values());
-        Map<String, Integer> toReturn = new HashMap<String, Integer>();
+        Iterator<Map.Entry<String, Tweetails>> mapIterator = treeMap.entrySet().iterator();
 
-        // Sort lists of keys and values
-        Collections.sort(keys);
-        Collections.sort(values);
-
-        Iterator valIt = values.iterator();
-        while (valIt.hasNext()) {
-            Object val = valIt.next();
-            Iterator keyIt = keys.iterator();
-            while (keyIt.hasNext()) {
-                Object key = keyIt.next();
-                String toCompare1 = terms.get(key).toString();
-                String toCompare2 = val.toString();
-
-                // Match key and value
-                if (toCompare1.equals(toCompare2)) {
-                    terms.remove(key);
-                    keys.remove(key);
-                    toReturn.put((String) key, (Integer) val);
-                    break;
-                }
+        System.out.println("Terms:");
+        while (mapIterator.hasNext()) {
+            Map.Entry<String, Tweetails> entry = mapIterator.next();
+            System.out.print(entry.getKey() + "[" + entry.getValue().occourences + "] ("); // + ")");
+            for(Date time : entry.getValue().getTweetTimes()){
+                System.out.print(time + ", ");
             }
-
+            System.out.println(")");
         }
-        return toReturn;
+
+        return treeMap;
     }
 
     public void getUserTimeLine(String user) throws TwitterException {
-        ConfigurationBuilder cb = new ConfigurationBuilder();
+        ConfigurationBuilder cb = new ConfigurationBuilder(); 
         cb.setDebugEnabled(true)
                 .setOAuthConsumerKey(CONSUMER_KEY)
                 .setOAuthConsumerSecret(CONSUMER_KEY_SECRET)
@@ -207,5 +317,44 @@ public class TwitterClient {
         for (Status status : statuses) {
             System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
         }
+    }
+
+}
+
+class MapComparator implements Comparator<String> {
+
+    Map<String, Tweetails> base;
+
+    public MapComparator(Map<String, Tweetails> base) {
+        this.base = base;
+    }
+
+    @Override
+    public int compare(String a, String b) {
+        if (base.get(a).occourences >= base.get(b).occourences) {
+            return -1;
+        } else {
+            return 1;
+        } // returning 0 would merge keys
+    }
+
+}
+
+class Tweetails { // Tweet details huehue
+
+    public Integer occourences;
+    public ArrayList<Date> tweetTime;
+
+    Tweetails(Integer occ, ArrayList<Date> tt) {
+        this.occourences = occ;
+        this.tweetTime = tt;
+    }
+
+    public Integer getOccourences() {
+        return this.occourences;
+    }
+    
+    public ArrayList<Date> getTweetTimes(){
+        return this.tweetTime;
     }
 }
