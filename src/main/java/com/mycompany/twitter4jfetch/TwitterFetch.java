@@ -1,6 +1,7 @@
 package com.mycompany.twitter4jfetch;
 
 import java.io.IOException;
+import javax.swing.JOptionPane;
 import twitter4j.TwitterException;
 
 public class TwitterFetch {
@@ -30,16 +31,16 @@ public class TwitterFetch {
 	/** * @param args */ 
 	public static void main(String[] args) throws IOException {
                 // FileReading
-                TwitterClient.FileReader(TwitterClient.stopWordFile);
+                TwitterClient.readFiles();
             
 		tw = new TwitterClient(AccessTokens.consumerKey, AccessTokens.consumerKeySecret);
-		search("#Sasquatch2014");
+		search(JOptionPane.showInputDialog("Enter Query:"));
                 
                 System.out.println("************************************");
                 TwitterClient.renderWordFreqTable();
           
                 
-                TwitterClient.getTermsOver(0, TwitterClient.termCollection);
+                //TwitterClient.getTermsOver(0, TwitterClient.termCollection);
 
                 
 
