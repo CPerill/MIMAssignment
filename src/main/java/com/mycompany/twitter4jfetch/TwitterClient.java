@@ -34,6 +34,8 @@ public class TwitterClient {
     protected static Map<String, Tweetails> hashtags = new HashMap<String, Tweetails>();
     protected static Map<String, Tweetails> positiveWords = new HashMap<String, Tweetails>();
     protected static Map<String, Tweetails> negativeWords = new HashMap<String, Tweetails>();
+
+    protected static List<Status> tweetsForTimeScan = new ArrayList<Status>();
     //
     //////////////////////////////
 
@@ -81,6 +83,40 @@ public class TwitterClient {
         }
     }
 
+    public static void renderTweetsAfterTime(List<Status> tweetsIn) {
+        //Map<String, Tweetails> output = new HashMap<String, Tweetails>();
+        Map<Integer, Integer> tweetOutput = new HashMap<Integer, Integer>();
+
+        Date dateIn = new Date(2014, 11, 24); // User input
+        Date dateBefore = new Date(2014,11,25);
+        
+        for (Status tweet : tweetsIn) {
+            int tweetDay = tweet.getCreatedAt().getHours();
+            
+            Integer tweetHour = tweet.getCreatedAt().getHours();
+            Integer tweetCount = tweetOutput.get(tweetHour);
+            
+            System.out.print(tweetHour);
+           // if (tweet.getCreatedAt().after(dateIn) && tweet.getCreatedAt().before(dateBefore)) {
+            if (tweet.getCreatedAt().compareTo(dateBefore) < 0 && tweet.getCreatedAt().compareTo(dateIn) > 0) {
+                System.out.print("**********************************");
+                System.out.print("Yeah dara, it got to this line 3");
+                System.out.print("********************************");
+
+                if (tweetCount == null) {
+                    tweetOutput.put(tweetHour, 1);
+                    System.out.println("Added tweet to hour " + tweetHour);
+                } else {
+                    tweetOutput.put(tweetHour, tweetCount + 1);
+                    System.out.println("Added tweet to hour " + tweetHour);
+                }
+            }
+        }
+
+        //Iterator<Map.Entry<Integer, Integer>> outputIterator = Map.Entry
+        System.out.println();
+    }
+
     public void startSeachAPI(String qstr) throws TwitterException, IOException {
         ConfigurationBuilder cb = new ConfigurationBuilder();
         cb.setDebugEnabled(true)
@@ -97,19 +133,26 @@ public class TwitterClient {
         }
         Query query = new Query(qstr);
         // Gather x amount of tweets
-        query.setCount(5000);
+        //query.setCount(5000);
         QueryResult result = twitter.search(query);
-        for (Status status : result.getTweets()) {
-            System.out.println("@" + status.getUser().getScreenName() + ":" + status.getText() + " (" + status.getCreatedAt().toString() + ")");
-            System.out.println("Retweets: " + status.getRetweetCount() + " | Favourites: " + status.getFavoriteCount());
 
-            if (status.getGeoLocation() != null) {
-                System.out.println("Geo Location:");
-                System.out.println("(" + status.getGeoLocation().getLatitude() + "," + status.getGeoLocation().getLongitude() + ")");
+        while (result.hasNext()) {
+            for (Status status : result.getTweets()) {
+                System.out.println("@" + status.getUser().getScreenName() + ":" + status.getText() + " (" + status.getCreatedAt().toString() + ")");
+                System.out.println("Retweets: " + status.getRetweetCount() + " | Favourites: " + status.getFavoriteCount());
+
+                if (status.getGeoLocation() != null) {
+                    System.out.println("Geo Location:");
+                    System.out.println("(" + status.getGeoLocation().getLatitude() + "," + status.getGeoLocation().getLongitude() + ")");
+                }
+
+                // Feed tweets and username into map
+                tweetsForTimeScan.add(status);
+                input.put(status.getText(), status.getCreatedAt());
             }
 
-            // Feed tweets and username into map
-            input.put(status.getText(), status.getCreatedAt());
+            Query qr = result.nextQuery();
+            result = twitter.search(qr);
         }
 
     }
@@ -133,7 +176,7 @@ public class TwitterClient {
                 }
 
                 ArrayList<Date> listToAdd = new ArrayList<Date>();
-                if (terms == null) {   
+                if (terms == null) {
                     listToAdd.add(tweetDate);
                     output.put(word, new Tweetails(1, listToAdd));
                 } else {
@@ -159,21 +202,27 @@ public class TwitterClient {
         System.out.println("Starting displayCategories()");
         displayCategories();
 
+        renderTweetsAfterTime(tweetsForTimeScan);
+
         System.out.println(positiveWords.size() + " Positive Terms:");
         Iterator<Map.Entry<String, Tweetails>> positiveIterator = positiveWords.entrySet().iterator();
         Iterator<Map.Entry<String, Tweetails>> negativeIterator = negativeWords.entrySet().iterator();
         while (positiveIterator.hasNext()) {
             Map.Entry<String, Tweetails> entry = positiveIterator.next();
             System.out.print(entry.getKey() + " - [" + entry.getValue().occourences + "] (");
-            for(Date time : entry.getValue().getTweetTimes()){
-               System.out.print(time + ", "); 
+            for (Date time : entry.getValue().getTweetTimes()) {
+                System.out.print(time + ", ");
             }
             System.out.println(")");
         }
         System.out.println(negativeWords.size() + " Negative Terms:");
         while (negativeIterator.hasNext()) {
             Map.Entry<String, Tweetails> entry = negativeIterator.next();
-            System.out.println(entry.getKey() + " - [" + entry.getValue().occourences + "]");
+            System.out.print(entry.getKey() + " - [" + entry.getValue().occourences + "] (");
+            for (Date time : entry.getValue().getTweetTimes()) {
+                System.out.print(time + ", ");
+            }
+            System.out.println(")");
         }
 
     }
@@ -289,7 +338,7 @@ public class TwitterClient {
         while (mapIterator.hasNext()) {
             Map.Entry<String, Tweetails> entry = mapIterator.next();
             System.out.print(entry.getKey() + "[" + entry.getValue().occourences + "] ("); // + ")");
-            for(Date time : entry.getValue().getTweetTimes()){
+            for (Date time : entry.getValue().getTweetTimes()) {
                 System.out.print(time + ", ");
             }
             System.out.println(")");
@@ -299,7 +348,7 @@ public class TwitterClient {
     }
 
     public void getUserTimeLine(String user) throws TwitterException {
-        ConfigurationBuilder cb = new ConfigurationBuilder(); 
+        ConfigurationBuilder cb = new ConfigurationBuilder();
         cb.setDebugEnabled(true)
                 .setOAuthConsumerKey(CONSUMER_KEY)
                 .setOAuthConsumerSecret(CONSUMER_KEY_SECRET)
@@ -353,8 +402,8 @@ class Tweetails { // Tweet details huehue
     public Integer getOccourences() {
         return this.occourences;
     }
-    
-    public ArrayList<Date> getTweetTimes(){
+
+    public ArrayList<Date> getTweetTimes() {
         return this.tweetTime;
     }
 }
