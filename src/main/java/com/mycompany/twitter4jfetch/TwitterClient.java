@@ -81,40 +81,43 @@ public class TwitterClient {
                 negativeRef.add(sw[i]);
             }
         }
+        swBR.close();
+        pwBR.close();
+        nwBR.close();
     }
 
     public static void renderTweetsAfterTime(List<Status> tweetsIn) {
-        //Map<String, Tweetails> output = new HashMap<String, Tweetails>();
-        Map<Integer, Integer> tweetOutput = new HashMap<Integer, Integer>();
+        
+    	Map<Integer, Integer> tweetTimes = new HashMap<Integer, Integer>();
 
-        Date dateIn = new Date(2014, 11, 24); // User input
-        Date dateBefore = new Date(2014,11,25);
+        Date dayToCheck = new Date(114, 10, 27);
+        Date nextDay = new Date(dayToCheck.getYear(), dayToCheck.getMonth(), dayToCheck.getDate() + 1);
+        
+        System.out.println("Checking for tweets on: " +dayToCheck);        
         
         for (Status tweet : tweetsIn) {
-            int tweetDay = tweet.getCreatedAt().getHours();
+            Date tweetDate = tweet.getCreatedAt();
             
-            Integer tweetHour = tweet.getCreatedAt().getHours();
-            Integer tweetCount = tweetOutput.get(tweetHour);
+            Integer tweetHour = tweetDate.getHours();
+            Integer tweetCount = tweetTimes.get(tweetHour);
             
-            System.out.print(tweetHour);
-           // if (tweet.getCreatedAt().after(dateIn) && tweet.getCreatedAt().before(dateBefore)) {
-            if (tweet.getCreatedAt().compareTo(dateBefore) < 0 && tweet.getCreatedAt().compareTo(dateIn) > 0) {
-                System.out.print("**********************************");
-                System.out.print("Yeah dara, it got to this line 3");
-                System.out.print("********************************");
-
+            if (tweetDate.after(dayToCheck) && tweetDate.before(nextDay)) {
                 if (tweetCount == null) {
-                    tweetOutput.put(tweetHour, 1);
-                    System.out.println("Added tweet to hour " + tweetHour);
+                    tweetTimes.put(tweetHour, 1);
                 } else {
-                    tweetOutput.put(tweetHour, tweetCount + 1);
-                    System.out.println("Added tweet to hour " + tweetHour);
+                    tweetTimes.put(tweetHour, tweetCount + 1);
                 }
             }
         }
 
-        //Iterator<Map.Entry<Integer, Integer>> outputIterator = Map.Entry
-        System.out.println();
+        Iterator<Map.Entry<Integer, Integer>> mapIterator = tweetTimes.entrySet().iterator();
+        while(mapIterator.hasNext()){
+        	Map.Entry<Integer, Integer> entry = mapIterator.next();
+        	Integer hour = entry.getKey();
+        	Integer occurences = entry.getValue();
+        	
+        	System.out.println("After: " +hour +":00, tweets: " +occurences);
+        }
     }
 
     public void startSeachAPI(String qstr) throws TwitterException, IOException {
@@ -136,7 +139,8 @@ public class TwitterClient {
         //query.setCount(5000);
         QueryResult result = twitter.search(query);
 
-        while (result.hasNext()) {
+        int iters = 0;
+        while (result.hasNext() && iters < 10) {
             for (Status status : result.getTweets()) {
                 System.out.println("@" + status.getUser().getScreenName() + ":" + status.getText() + " (" + status.getCreatedAt().toString() + ")");
                 System.out.println("Retweets: " + status.getRetweetCount() + " | Favourites: " + status.getFavoriteCount());
@@ -149,6 +153,7 @@ public class TwitterClient {
                 // Feed tweets and username into map
                 tweetsForTimeScan.add(status);
                 input.put(status.getText(), status.getCreatedAt());
+                iters++;
             }
 
             Query qr = result.nextQuery();
